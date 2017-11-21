@@ -1,0 +1,19 @@
+* Creating a web server from scratch using Go.
+
+1. Create a project
+   + Inside golang/src/github.com/zenathark
+   + Create .gitignore, README.md, LICENCE.md
+   + Create /projectname/.go and /projectname/_test.go
+   + Create a main.go if it is an executable (?)
+
+2. Creating a tokenizer
+   Using https://www.schoolofhaskell.com/school/starting-with-haskell/basics-of-haskell/6-tokenizer-function-types
+   that has tokenizer instructions in haskell, I will write the tokenizer. This
+   is needed because the HTTP standard is defined in terms of BFS. Note that I
+   may not end up writing idiomatic Go.
+
+   1. Enumerate tokens. Create an enumeration of possible tokens.
+   2. Declare Token Types: With value and only by type.
+   3. Creating a token structure. A token structure will have an id or an id and a value.
+   4. Create constructors for the data types.
+   5. Test!
