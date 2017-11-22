@@ -1,32 +1,33 @@
 package gohttp_test
 
 import (
+	"github.com/stretchr/testify/assert"
 	"github.com/zenathark/gohttp"
-	. "gopkg.in/check.v1"
 	"testing"
 )
 
-func Test(t *testing.T) { TestingT(t) }
-
-type MySuite struct{}
-
-var _ = Suite(&MySuite{})
-
-func (s *MySuite) TestNewToken(c *C) {
+func TestNewToken(t *testing.T) {
 	k := gohttp.NewToken(gohttp.DIGIT)
-	c.Assert(k.GetID(), Equals, gohttp.DIGIT)
+	assert.Equal(t, k.GetID(), gohttp.DIGIT, "NewToken should be DIGIT")
 }
 
-func (s *MySuite) TestNewDataToken(c *C) {
+func TestNewDataToken(t *testing.T) {
 	k := gohttp.NewDataToken(gohttp.DIGIT, "3")
-	c.Assert(k.GetID(), Equals, gohttp.DIGIT)
-	c.Assert(k.GetValue(), Equals, "3")
+	assert.Equal(t, k.GetID(), gohttp.DIGIT)
+	assert.Equal(t, k.GetValue(), "3", "Content should be 3")
 }
 
-func (s *MySuite) TestNextToken(c *C) {
-	t := gohttp.NewHTTPTokenizer("a")
-	token := t.NextToken()
-	c.Assert(t.Message, Equals, "a")
-	c.Assert(token, Not(Equals), (*gohttp.DataToken)(nil))
-	c.Assert(token, Equals, gohttp.CRLF)
+func TestTokenIter(t *testing.T) {
+	tk := gohttp.NewHTTPTokenizer("\r\na")
+	assert.Equal(t, tk.Message, "\r\na", "Message should content the correct string")
+	it := tk.Iter()
+	fst, err := it()
+	assert.Equal(t, err, nil)
+	assert.Equal(t, fst.GetID(), gohttp.CRLF, "Should match CRLF.")
+	scd, err := it()
+	assert.Equal(t, err, nil)
+	assert.Equal(t, scd.GetID(), gohttp.ALPHA, "Shold match a character.")
+	lst, err := it()
+	assert.Equal(t, err, nil)
+	assert.Equal(t, lst, (*gohttp.DataToken)(nil), "Should return nil if the iterator is exhausted.")
 }
