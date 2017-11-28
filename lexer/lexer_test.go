@@ -2,7 +2,7 @@ package lexer_test
 
 import (
 	"github.com/stretchr/testify/assert"
-	"github.com/zenathark/lexer/lexer"
+	"github.com/zenathark/gohttp/lexer"
 	"testing"
 )
 
