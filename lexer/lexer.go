@@ -66,6 +66,7 @@ type TokenIterator struct {
 
 type stateFn func(*lexer) stateFn
 
+// NewLexer returns a new instance of a lexer
 func lex(name, input string, beginState stateFn) (*lexer, chan token) {
 	l := &lexer{
 		name:       name,
