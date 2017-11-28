@@ -13,7 +13,34 @@
    may not end up writing idiomatic Go.
 
    1. Enumerate tokens. Create an enumeration of possible tokens.
-   2. Declare Token Types: With value and only by type.
-   3. Creating a token structure. A token structure will have an id or an id and a value.
-   4. Create constructors for the data types.
-   5. Test!
+   2. Declare Token Types: The tokenizer will handle only one type.
+   3. Creating a token structure. A token structure will have an id, its offset,
+      size of the matched string and the string itself.
+   5. Create constructors for the data types.
+   6. Test!
+      1. In order to create unit test ~testify~ was added. It makes writing
+	 asserts more comfortably. I haven't tested others beside ~testing~
+	 and ~gocheck~.
+      2. Also, I added a logger called ~Logrus~. To make it work, besides adding
+	 ~logrus~ to my imports, I included the following code:
+	 #+begin_src go
+	   // Logger info
+	   var log = logrus.New()
+
+	   func init() {
+		   log.Out = os.Stdout
+		   log.SetLevel(logrus.DebugLevel)
+	   }
+	 #+end_src
+	 Notice the use of the function ~init()~. This function is invoked when
+	 the module is included. For more check: https://medium.com/golangspec/init-functions-in-go-eac191b3860a
+   7. Creating a Tokenizer and its iterator. The tokenizer is just an struct that
+      holds the message. The method Iter returns a lambda that matches the tokens
+      one after another until the message is consumed by the iterator.
+   8. The tokens are defined as individual regular expressions than later on are
+      concatenated as a big regular expression in order to improve performance.
+      After a full match, a second match using individual regular expressions is
+      performed for determining the type of the token. Maybe this can be further
+      improved so only one match is done.
+   1. Enumerate tokens' regular expressions using a map. The tokens must be
+      written by precedence.
