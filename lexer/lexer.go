@@ -6,7 +6,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"os"
 	// "regexp"
-	// "unicode/utf8"
+	"unicode"
+	"unicode/utf8"
 )
 
 // Logger info
@@ -27,6 +28,8 @@ const (
 	tokenOctet
 	tokenEOF
 )
+
+const eof = -1
 
 // Token holds all information of a processed symbol
 type token struct {
@@ -54,33 +57,77 @@ type lexer struct {
 	start      int
 	pos        int
 	width      int
-	tokens     chan token
 	beginState stateFn
 }
 
 // TokenIterator creates an iterator of all tokens found on input.
 // It is consumed when used
 type TokenIterator struct {
-	state stateFn
+	start  int
+	pos    int
+	width  int
+	input  string
+	state  stateFn
+	tokens chan token
 }
 
-type stateFn func(*lexer) stateFn
+type stateFn func(*TokenIterator) stateFn
 
 // NewLexer returns a new instance of a lexer
-func lex(name, input string, beginState stateFn) (*lexer, chan token) {
+func lex(name, input string, beginState stateFn) *lexer {
 	l := &lexer{
 		name:       name,
 		input:      input,
-		tokens:     make(chan token),
 		beginState: beginState,
 	}
-	return l, l.tokens
+	return l
 }
 
-func (l *lexer) Iter() *TokenIterator {
-	return &TokenIterator{
-		state: l.beginState,
+// Iter returns an iterator over all tokens of the lexer
+func (l *lexer) Iter() (*TokenIterator, chan token) {
+	iter := &TokenIterator{
+		state:  l.beginState,
+		start:  l.start,
+		pos:    l.pos,
+		width:  l.width,
+		input:  l.input,
+		tokens: make(chan token),
 	}
+	go iter.run()
+	return iter, iter.tokens
+}
+
+func (ti *TokenIterator) run() {
+	for state := ti.state; state != nil; {
+		state = state(ti)
+	}
+	close(ti.tokens)
+}
+
+func (ti *TokenIterator) emit(t tokenType) {
+	ti.tokens <- token{t, ti.input[ti.start:ti.pos]}
+	ti.start = ti.pos
+}
+
+func (ti *TokenIterator) next() (r rune) {
+	if ti.pos >= len(ti.input) {
+		ti.width = 0
+		return eof
+	}
+	r, ti.width = utf8.DecodeRuneInString(ti.input[ti.pos:])
+	ti.pos += ti.width
+	return r
 }
 
 // ------------------- Protocol definition HTTP 1.0-----------------------------
+
+func octetLexer(ti *TokenIterator) stateFn {
+	r, _ := utf8.DecodeRuneInString(ti.input[ti.pos:])
+	if unicode.In(r, unicode.ASCII_Hex_Digit) {
+		if ti.pos > ti.start {
+			ti.emit(tokenOctet)
+			return octetLexer
+		}
+	}
+	return nil
+}
