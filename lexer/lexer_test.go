@@ -6,7 +6,8 @@ import (
 	"testing"
 )
 
-func TestNewToken(t *testing.T) {
-	k := lexer.NewToken(lexer.DIGIT)
-	assert.Equal(t, k.GetID(), lexer.DIGIT, "NewToken should be DIGIT")
+func TestAcceptOctet(t *testing.T) {
+	lex := lexer.NewLexer("Test1", "AO53", lexer.OctetLexer)
+	tk := lex.NextToken()
+	assert.Equal(t, tk.Val, "A", "First token should be an A")
 }

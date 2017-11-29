@@ -6,6 +6,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"os"
 	// "regexp"
+	"strings"
 	"unicode"
 	"unicode/utf8"
 )
@@ -33,100 +34,124 @@ const eof = -1
 
 // Token holds all information of a processed symbol
 type token struct {
-	typ tokenType
-	val string
+	Typ tokenType
+	Val string
 }
 
 // String returns a string representation of a token
 func (t token) String() string {
-	switch t.typ {
+	switch t.Typ {
 	case tokenEOF:
 		return "EOF"
 	case tokenError:
-		return t.val
+		return t.Val
 	}
-	if len(t.val) > 10 {
-		return fmt.Sprintf("%.10q...", t.val)
+	if len(t.Val) > 10 {
+		return fmt.Sprintf("%.10q...", t.Val)
 	}
-	return fmt.Sprintf("%q", t.val)
+	return fmt.Sprintf("%q", t.Val)
 }
 
 type lexer struct {
-	name       string
-	input      string
-	start      int
-	pos        int
-	width      int
-	beginState stateFn
-}
-
-// TokenIterator creates an iterator of all tokens found on input.
-// It is consumed when used
-type TokenIterator struct {
+	name   string
+	input  string
 	start  int
 	pos    int
 	width  int
-	input  string
 	state  stateFn
 	tokens chan token
 }
 
-type stateFn func(*TokenIterator) stateFn
+type stateFn func(*lexer) stateFn
 
 // NewLexer returns a new instance of a lexer
-func lex(name, input string, beginState stateFn) *lexer {
+func NewLexer(name, input string, beginState stateFn) *lexer {
 	l := &lexer{
-		name:       name,
-		input:      input,
-		beginState: beginState,
+		name:   name,
+		input:  input,
+		state:  beginState,
+		tokens: make(chan token, 2),
 	}
+	go l.run()
 	return l
 }
 
-// Iter returns an iterator over all tokens of the lexer
-func (l *lexer) Iter() (*TokenIterator, chan token) {
-	iter := &TokenIterator{
-		state:  l.beginState,
-		start:  l.start,
-		pos:    l.pos,
-		width:  l.width,
-		input:  l.input,
-		tokens: make(chan token),
-	}
-	go iter.run()
-	return iter, iter.tokens
-}
-
-func (ti *TokenIterator) run() {
+func (ti *lexer) run() {
 	for state := ti.state; state != nil; {
 		state = state(ti)
 	}
 	close(ti.tokens)
 }
 
-func (ti *TokenIterator) emit(t tokenType) {
+func (ti *lexer) emit(t tokenType) {
 	ti.tokens <- token{t, ti.input[ti.start:ti.pos]}
 	ti.start = ti.pos
 }
 
-func (ti *TokenIterator) next() (r rune) {
+func (ti *lexer) next() (r rune, eof bool) {
 	if ti.pos >= len(ti.input) {
 		ti.width = 0
-		return eof
+		return 0, true
 	}
 	r, ti.width = utf8.DecodeRuneInString(ti.input[ti.pos:])
 	ti.pos += ti.width
+	return r, false
+}
+
+func (ti *lexer) peek() rune {
+	r, _ := ti.next()
+	ti.backward()
 	return r
+}
+
+func (ti *lexer) backward() {
+	ti.pos -= ti.width
+}
+
+func (ti *lexer) ignore() {
+	ti.start = ti.pos
+}
+
+func (ti *lexer) accept(valid string) bool {
+	r, _ := ti.next()
+	if strings.IndexRune(valid, r) >= 0 {
+		return true
+	}
+	ti.backward()
+	return false
+}
+
+func (ti *lexer) acceptRun(valid string) {
+	for ti.accept(valid) {
+	}
+}
+
+// NextToken return the following token of the string
+func (l *lexer) NextToken() token {
+	for {
+		select {
+		case item := <-l.tokens:
+			return item
+		default:
+			l.state = l.state(l)
+		}
+	}
+	panic("Should not be reached")
 }
 
 // ------------------- Protocol definition HTTP 1.0-----------------------------
 
-func octetLexer(ti *TokenIterator) stateFn {
+func OctetLexer(ti *lexer) stateFn {
 	r, _ := utf8.DecodeRuneInString(ti.input[ti.pos:])
 	if unicode.In(r, unicode.ASCII_Hex_Digit) {
 		if ti.pos > ti.start {
 			ti.emit(tokenOctet)
-			return octetLexer
+			return OctetLexer
+		}
+		_, eof := ti.next()
+		if eof {
+			ti.emit(tokenEOF)
+			return nil
 		}
 	}
 	return nil
