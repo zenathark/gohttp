@@ -30,8 +30,6 @@ const (
 	tokenEOF
 )
 
-const eof = -1
-
 // Token holds all information of a processed symbol
 type token struct {
 	Typ tokenType
@@ -72,15 +70,29 @@ func NewLexer(name, input string, beginState stateFn) *lexer {
 		state:  beginState,
 		tokens: make(chan token, 2),
 	}
-	go l.run()
+	go l.run(true)
 	return l
 }
 
-func (ti *lexer) run() {
+// NewLexer returns a new instance of a lexer
+func newLexer(name, input string, beginState stateFn) *lexer {
+	l := &lexer{
+		name:   name,
+		input:  input,
+		state:  beginState,
+		tokens: make(chan token, 2),
+	}
+	go l.run(false)
+	return l
+}
+
+func (ti *lexer) run(closeOnFinish bool) {
 	for state := ti.state; state != nil; {
 		state = state(ti)
 	}
-	close(ti.tokens)
+	if closeOnFinish {
+		close(ti.tokens)
+	}
 }
 
 func (ti *lexer) emit(t tokenType) {
@@ -127,26 +139,26 @@ func (ti *lexer) acceptRun(valid string) {
 }
 
 // NextToken return the following token of the string
-func (l *lexer) NextToken() token {
-	for {
-		select {
-		case item := <-l.tokens:
-			return item
-		default:
-			l.state = l.state(l)
-		}
-	}
-	panic("Should not be reached")
-}
+// func (l *lexer) NextToken() token {
+//	for {
+//		select {
+//		case item := <-l.tokens:
+//			return item
+//		default:
+//			l.state = l.state(l)
+//		}
+//	}
+//	panic("Should not be reached")
+// }
 
 // ------------------- Protocol definition HTTP 1.0-----------------------------
 
-func OctetLexer(ti *lexer) stateFn {
+func octetLexer(ti *lexer) stateFn {
 	r, _ := utf8.DecodeRuneInString(ti.input[ti.pos:])
 	if unicode.In(r, unicode.ASCII_Hex_Digit) {
 		if ti.pos > ti.start {
 			ti.emit(tokenOctet)
-			return OctetLexer
+			return octetLexer
 		}
 		_, eof := ti.next()
 		if eof {
