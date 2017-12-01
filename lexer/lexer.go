@@ -25,6 +25,7 @@ type tokenType int
 // Types of tokens
 const (
 	tokenError tokenType = iota
+	tokenNone
 
 	tokenOctet
 	tokenEOF
@@ -74,15 +75,23 @@ func NewLexer(name, input string, beginState stateFn) *lexer {
 	return l
 }
 
-// NewLexer returns a new instance of a lexer
-func newLexer(name, input string, beginState stateFn) *lexer {
+// newLexer returns a new instance of a lexer
+// This method is mainly for test purpouses
+// if true, runTokenizer instructs the function to start the lexer's
+// go routine.
+// The closeOnFinish argument instructs the function to close the
+// channel of the lexer on finish. This is the normal operation but can
+// be left open for testing.
+func newLexer(name, input string, beginState stateFn, runTokenizer, closeOnFinish bool) *lexer {
 	l := &lexer{
 		name:   name,
 		input:  input,
 		state:  beginState,
 		tokens: make(chan token, 2),
 	}
-	go l.run(false)
+	if runTokenizer {
+		go l.run(closeOnFinish)
+	}
 	return l
 }
 
@@ -152,6 +161,47 @@ func (ti *lexer) acceptRun(valid string) {
 // }
 
 // ------------------- Protocol definition HTTP 1.0-----------------------------
+
+func emptyState(ti *lexer) stateFn {
+	if ti.pos > ti.start {
+		ti.emit(tokenNone)
+		return emptyState
+	}
+	_, eof := ti.next()
+	if eof {
+		ti.emit(tokenEOF)
+		return nil
+	}
+	return nil
+}
+
+func coloopAState(ti *lexer) stateFn {
+	ti.acceptRun("A")
+	if ti.pos > ti.start {
+		ti.emit(tokenNone)
+		return coloopBState
+	}
+	_, eof := ti.next()
+	if eof {
+		ti.emit(tokenEOF)
+		return nil
+	}
+	return nil
+}
+
+func coloopBState(ti *lexer) stateFn {
+	ti.acceptRun("B")
+	if ti.pos > ti.start {
+		ti.emit(tokenNone)
+		return coloopAState
+	}
+	_, eof := ti.next()
+	if eof {
+		ti.emit(tokenEOF)
+		return nil
+	}
+	return nil
+}
 
 func octetLexer(ti *lexer) stateFn {
 	r, _ := utf8.DecodeRuneInString(ti.input[ti.pos:])

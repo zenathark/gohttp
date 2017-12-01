@@ -66,7 +66,7 @@ func TestPeekNextLoop(t *testing.T) {
 }
 
 func TestPeekEmitLoop(t *testing.T) {
-	lex := newLexer("Test1", "AO53", octetLexer)
+	lex := newLexer("Test1", "AO53", octetLexer, true, false)
 	for range "AO53" {
 		c, _ := lex.next()
 		tk := token{tokenOctet, fmt.Sprintf("%c", c)}
@@ -77,7 +77,7 @@ func TestPeekEmitLoop(t *testing.T) {
 }
 
 func TestEmitLongLoop(t *testing.T) {
-	lex := newLexer("Test1", "AO53", octetLexer)
+	lex := newLexer("Test1", "AO53", octetLexer, true, false)
 	var c []rune
 	c = make([]rune, 2)
 	c[0], _ = lex.next()
@@ -89,14 +89,41 @@ func TestEmitLongLoop(t *testing.T) {
 }
 
 func TestAccept(t *testing.T) {
-	lex := newLexer("Test1", "AO53", octetLexer)
-	// lex2 := newLexer("Test2", "AO53", octetLexer)
+	lex := newLexer("Test1", "AO53", emptyState, false, false)
 	for i := range "AO53" {
 		c := lex.peek()
 		accepted1 := lex.accept("53AO")
 		assert.Equal(t, accepted1, true, fmt.Sprintf("%d-th Char [%c] must be accepted", i, c))
-		fmt.Printf("%d start %d pos\n", lex.start, lex.pos)
-		lex.next()
 	}
+	lex.emit(tokenNone)
+	emmited := <-lex.tokens
+	assert.Equal(t, emmited.Val, "AO53", "Emitted token must contain all string")
+}
 
+func TestRun(t *testing.T) {
+	lex := newLexer("Test1", "ABABA", coloopAState, true, true)
+	for tk := <-lex.tokens; tk.Typ != tokenEOF; tk = <-lex.tokens {
+		fmt.Printf("%s is the symbol\n", tk.Val)
+		assert.Equal(t, tk.Typ, tokenNone, "Emitted a None token")
+		assert.Equal(t, tk.Val, "A", "Took just an A")
+		tk := <-lex.tokens
+		fmt.Printf("%s is the symbol\n", tk.Val)
+		if tk.Typ == tokenEOF {
+			break
+		}
+		assert.Equal(t, tk.Typ, tokenNone, "Emitted a None token")
+		assert.Equal(t, tk.Val, "B", "Took just a B")
+	}
+}
+
+func TestRunAndChannel(t *testing.T) {
+	lex := newLexer("Test1", "ABABA", coloopAState, true, true)
+	s := ""
+	for tk := range lex.tokens {
+		if tk.Typ != tokenEOF {
+			assert.Equal(t, tk.Typ, tokenNone, "Emitted a None token")
+			s += tk.Val
+		}
+	}
+	assert.Equal(t, s, "ABABA", "Emitted all characters right")
 }
